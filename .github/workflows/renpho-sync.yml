@@ -88,13 +88,13 @@ jobs:
             --rpw "$env:RENPHO_PASSWORD" 2>&1
 
           $exitCode = $LASTEXITCODE
+
           $output | ForEach-Object { Write-Host $_ }
+          $log = $output | Out-String
 
           if ($exitCode -ne 0) {
-            $log = $output -join "`n"
-
-            if ($log -match "MFA code required to finish authorization process|MFA is not yet finished") {
-              Write-Host "::notice::Validation Garmin en attente. Relancez le workflow avec le code reçu par e-mail."
+            if ($log -match '(?i)MfaNotFinished|MfaRequired|MFA code required to finish authorization process|MFA is not yet finished') {
+              Write-Host "::notice::Demande MFA Garmin détectée. L'état d'authentification sera sauvegardé pour la prochaine exécution."
               exit 0
             }
 
