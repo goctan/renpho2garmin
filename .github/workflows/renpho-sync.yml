@@ -3,6 +3,11 @@ name: RENPHO to Garmin
 
 on:
   workflow_dispatch:
+    inputs:
+      garmin_mfa_code:
+        description: "Code Garmin reçu par e-mail (laisser vide si aucun code)"
+        required: false
+        type: string
 
   schedule:
     - cron: "0 15 * * *"
@@ -39,7 +44,7 @@ jobs:
 
           $config | ConvertTo-Json -Depth 10 | Set-Content $configPath
 
-      - name: Restore previous RENPHO state
+      - name: Restore previous RENPHO and Garmin state
         uses: actions/cache@v4
         with:
           path: .rgs-cache
@@ -55,6 +60,19 @@ jobs:
       - name: Build RENPHO sync
         run: dotnet publish source/RenphoGarminSync.Console/RenphoGarminSync.Console.csproj -c Release -o publish
 
+      - name: Complete Garmin email verification
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.garmin_mfa_code != '' }}
+        shell: pwsh
+        env:
+          GARMIN_USERNAME: ${{ secrets.GARMIN_USERNAME }}
+          GARMIN_MFA_CODE: ${{ inputs.garmin_mfa_code }}
+        run: |
+          ./publish/rgs.exe auth garmin --u "$env:GARMIN_USERNAME" --mfa "$env:GARMIN_MFA_CODE"
+
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
       - name: Synchronize new measurements with Garmin
         shell: pwsh
         env:
@@ -63,8 +81,22 @@ jobs:
           RENPHO_USERNAME: ${{ secrets.RENPHO_USERNAME }}
           RENPHO_PASSWORD: ${{ secrets.RENPHO_PASSWORD }}
         run: |
-          ./publish/rgs.exe sync `
+          $output = & ./publish/rgs.exe sync `
             --gu "$env:GARMIN_USERNAME" `
             --gpw "$env:GARMIN_PASSWORD" `
             --ru "$env:RENPHO_USERNAME" `
-            --rpw "$env:RENPHO_PASSWORD"
+            --rpw "$env:RENPHO_PASSWORD" 2>&1
+
+          $exitCode = $LASTEXITCODE
+          $output | ForEach-Object { Write-Host $_ }
+
+          if ($exitCode -ne 0) {
+            $log = $output -join "`n"
+
+            if ($log -match "MFA code required to finish authorization process|MFA is not yet finished") {
+              Write-Host "::notice::Validation Garmin en attente. Relancez le workflow avec le code reçu par e-mail."
+              exit 0
+            }
+
+            exit $exitCode
+          }
