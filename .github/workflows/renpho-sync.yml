@@ -1,0 +1,37 @@
+
+name: RENPHO to Garmin
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-sync:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout RENPHO sync source
+        uses: actions/checkout@v4
+        with:
+          repository: forkerer/RenphoGarminSync-CLI
+          path: source
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Build RENPHO sync
+        run: dotnet publish source/RenphoGarminSync.Console/RenphoGarminSync.Console.csproj -c Release -o publish
+
+      - name: Test connections and preview
+        shell: pwsh
+        env:
+          GARMIN_USERNAME: ${{ secrets.GARMIN_USERNAME }}
+          GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+          RENPHO_USERNAME: ${{ secrets.RENPHO_USERNAME }}
+          RENPHO_PASSWORD: ${{ secrets.RENPHO_PASSWORD }}
+        run: |
+          ./publish/rgs.exe sync --gu "$env:GARMIN_USERNAME" --gpw "$env:GARMIN_PASSWORD" --ru "$env:RENPHO_USERNAME" --rpw "$env:RENPHO_PASSWORD" --dry-run
