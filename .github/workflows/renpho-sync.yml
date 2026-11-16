@@ -16,6 +16,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: goctan/RenphoGarminSync-CLI
+          ref: patch-1
           path: source
 
       - name: Configure persistent storage
