@@ -45,7 +45,7 @@ jobs:
       - name: Build RENPHO sync
         run: dotnet publish source/RenphoGarminSync.Console/RenphoGarminSync.Console.csproj -c Release -o publish
 
-      - name: Test connections and preview
+      - name: Test connections and generate FIT file
         shell: pwsh
         env:
           GARMIN_USERNAME: ${{ secrets.GARMIN_USERNAME }}
@@ -54,3 +54,11 @@ jobs:
           RENPHO_PASSWORD: ${{ secrets.RENPHO_PASSWORD }}
         run: |
           ./publish/rgs.exe sync --gu "$env:GARMIN_USERNAME" --gpw "$env:GARMIN_PASSWORD" --ru "$env:RENPHO_USERNAME" --rpw "$env:RENPHO_PASSWORD" --dry-run
+
+      - name: Upload generated FIT file
+        uses: actions/upload-artifact@v4
+        with:
+          name: renpho-fit-test
+          path: .rgs-cache/FitFiles/*.fit
+          if-no-files-found: error
+          retention-days: 7
