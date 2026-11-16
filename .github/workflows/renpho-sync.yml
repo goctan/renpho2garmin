@@ -18,6 +18,24 @@ jobs:
           repository: forkerer/RenphoGarminSync-CLI
           path: source
 
+      - name: Configure persistent storage
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ".rgs-cache" | Out-Null
+          $configPath = "source/RenphoGarminSync.Console/config.json"
+          $config = Get-Content $configPath -Raw | ConvertFrom-Json
+          $config.General.UseDefaultCachePath = $false
+          $config.General.CustomCachePath = Join-Path $env:GITHUB_WORKSPACE ".rgs-cache"
+          $config | ConvertTo-Json -Depth 10 | Set-Content $configPath
+
+      - name: Restore previous RENPHO state
+        uses: actions/cache@v4
+        with:
+          path: .rgs-cache
+          key: renpho-state-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            renpho-state-${{ runner.os }}-
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
