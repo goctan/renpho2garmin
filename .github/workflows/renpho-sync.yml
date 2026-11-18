@@ -35,17 +35,14 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path ".rgs-cache" | Out-Null
-
           $configPath = "source/RenphoGarminSync.Console/config.json"
           $config = Get-Content $configPath -Raw | ConvertFrom-Json
-
           $config.General.UseDefaultCachePath = $false
           $config.General.CustomCachePath = Join-Path $env:GITHUB_WORKSPACE ".rgs-cache"
-
           $config | ConvertTo-Json -Depth 10 | Set-Content $configPath
 
       - name: Restore previous RENPHO and Garmin state
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: .rgs-cache
           key: renpho-state-${{ runner.os }}-${{ github.run_id }}
@@ -68,7 +65,6 @@ jobs:
           GARMIN_MFA_CODE: ${{ inputs.garmin_mfa_code }}
         run: |
           ./publish/rgs.exe auth garmin --u "$env:GARMIN_USERNAME" --mfa "$env:GARMIN_MFA_CODE"
-
           if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
           }
@@ -86,17 +82,20 @@ jobs:
             --gpw "$env:GARMIN_PASSWORD" `
             --ru "$env:RENPHO_USERNAME" `
             --rpw "$env:RENPHO_PASSWORD" 2>&1
-
           $exitCode = $LASTEXITCODE
-
           $output | ForEach-Object { Write-Host $_ }
           $log = $output | Out-String
-
           if ($exitCode -ne 0) {
             if ($log -match '(?i)MfaNotFinished|MfaRequired|MFA code required to finish authorization process|MFA is not yet finished') {
               Write-Host "::notice::Demande MFA Garmin détectée. L'état d'authentification sera sauvegardé pour la prochaine exécution."
               exit 0
             }
-
             exit $exitCode
           }
+
+      - name: Save RENPHO and Garmin state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: .rgs-cache
+          key: renpho-state-${{ runner.os }}-${{ github.run_id }}
